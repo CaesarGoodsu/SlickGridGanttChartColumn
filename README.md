@@ -1,0 +1,4 @@
+SlickGridGanttChartColumn
+=========================
+
+SlickGrid Plugin GanttChartColumn
