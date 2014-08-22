@@ -34,19 +34,19 @@
     _dialogDiv += "";
     _dialogDiv += "<table>";
     _dialogDiv += "  <tr>";
-    _dialogDiv += "    <th>表示開始日</th>";
-    _dialogDiv += "    <td><input class=\"spGanttChartColumn_dispBase\" type=\"text\" data-role=\"datebox\"><button class=\"spGanttChartColumn_dispBase_today\">今日</button></td>";
+    _dialogDiv += "    <th style=\"white-space: nowrap;\">表示開始日</th>";
+    _dialogDiv += "    <td><input style=\"width:8em;\" class=\"spGanttChartColumn_dispBase\" type=\"text\" data-role=\"datebox\"><button class=\"spGanttChartColumn_dispBase_today\">今日</button></td>";
     _dialogDiv += "  </tr>";
     _dialogDiv += "  <tr>";
-    _dialogDiv += "    <th>表示期間</th>";
+    _dialogDiv += "    <th style=\"white-space: nowrap;\">表示期間</th>";
     _dialogDiv += "    <td>";
-    _dialogDiv += "      <input class=\"spGanttChartColumn_dispDuration\" type=\"text\">";
+    _dialogDiv += "      <input style=\"width:8em;\" class=\"spGanttChartColumn_dispDuration\" type=\"text\">";
     _dialogDiv += "      <input class=\"spGanttChartColumn_dispDuration_auto\" id=\"spGanttChartColumn_dispDuration_auto\" type=\"checkbox\">";
     _dialogDiv += "      <label for=\"spGanttChartColumn_dispDuration_auto\">自動</label>";
     _dialogDiv += "    </td>";
     _dialogDiv += "  </tr>";
     _dialogDiv += "  <tr>";
-    _dialogDiv += "    <th>表示単位</th>";
+    _dialogDiv += "    <th style=\"white-space: nowrap;\">表示単位</th>";
     _dialogDiv += "    <td>";
     $.each($.map(dispUnitKey, function (value, key) {
         return key;
@@ -80,6 +80,8 @@
         dispUnit: dispUnitKey.D.value
     ,
         arrow: _defArrowDiv
+    ,
+        dispUnitWFormat: null
     }
     function GanttChartColumn(options) {
         var _grid;
@@ -251,6 +253,10 @@
                 var htmlM = "", preM = "";
                 var htmlD = "";
                 borderD = "";
+                var dispUnitWFormat = options.dispUnitWFormat;
+                if (!dispUnitWFormat) {
+                    dispUnitWFormat = "%W";
+                }
                 var tmpD = options.dispBase.clone();
                 var endD = tmpD.clone().addWeeks(dispDuration);
                 do {
@@ -267,7 +273,7 @@
                         htmlM += "<span class=\"sgCell\" style=\"width:" + options.cellWidth + "px;\"><br /></span>";
                     }
                     borderD += "<span class=\"sgCell\" style=\"width:" + options.cellWidth + "px;\"><br/></span>";
-                    htmlD += "<span class=\"sgCell\" style=\"width:" + options.cellWidth + "px;\">" + tmpD.format("%W") + "</span>";
+                    htmlD += "<span class=\"sgCell\" style=\"width:" + options.cellWidth + "px;\">" + tmpD.format(dispUnitWFormat) + "</span>";
                     tmpD.addWeeks(1);
                 } while (tmpD < endD);
                 html += "<span style=\"position:absolute;top:0;left:0;right:0;bottom:0;\">";
