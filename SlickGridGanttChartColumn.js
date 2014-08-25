@@ -190,6 +190,7 @@
                 var htmlY = "", preY = "";
                 var htmlM = "", preM = "";
                 var htmlD = "";
+                var today = Date.today();
                 borderD = "";
                 var tmpD = options.dispBase.clone();
                 var endD = tmpD.clone().addDays(dispDuration);
@@ -210,6 +211,9 @@
                     var cssClass = "sgCell";
                     if ($.inArray(tmpD.toString("yyyy/MM/dd"), options.holidays) >= 0) {
                         cssClass += " sgHolidays";
+                    }
+                    if (Date.equals(tmpD,today)) {
+                        cssClass += " sgTodays";
                     }
                     borderD += "<span class=\"" + cssClass + "\" style=\"width:" + options.cellWidth + "px;\"><br/></span>";
                     htmlD += "<span class=\"sgCell\" style=\"width:" + options.cellWidth + "px;\">" + tmpD.toString(" d") + "</span>";
