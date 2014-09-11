@@ -9,6 +9,8 @@
         }
     });
 
+    var dateTime = 1000 * 60 * 60 * 24;
+
     var dispUnitKey = {
         D: {
             value: "D"
@@ -34,26 +36,26 @@
     _dialogDiv += "";
     _dialogDiv += "<table>";
     _dialogDiv += "  <tr>";
-    _dialogDiv += "    <th style=\"white-space: nowrap;\">表示開始日</th>";
-    _dialogDiv += "    <td><input style=\"width:8em;\" class=\"spGanttChartColumn_dispBase\" type=\"text\" data-role=\"datebox\"><button class=\"spGanttChartColumn_dispBase_today\">今日</button></td>";
-    _dialogDiv += "  </tr>";
-    _dialogDiv += "  <tr>";
-    _dialogDiv += "    <th style=\"white-space: nowrap;\">表示期間</th>";
-    _dialogDiv += "    <td>";
-    _dialogDiv += "      <input style=\"width:8em;\" class=\"spGanttChartColumn_dispDuration\" type=\"text\">";
-    _dialogDiv += "      <input class=\"spGanttChartColumn_dispDuration_auto\" id=\"spGanttChartColumn_dispDuration_auto\" type=\"checkbox\">";
-    _dialogDiv += "      <label for=\"spGanttChartColumn_dispDuration_auto\">自動</label>";
-    _dialogDiv += "    </td>";
-    _dialogDiv += "  </tr>";
-    _dialogDiv += "  <tr>";
     _dialogDiv += "    <th style=\"white-space: nowrap;\">表示単位</th>";
-    _dialogDiv += "    <td>";
+    _dialogDiv += "    <td style=\"white-space: nowrap;\">";
     $.each($.map(dispUnitKey, function (value, key) {
         return key;
     }), function (index, key) {
         _dialogDiv += "<input class=\"spGanttChartColumn_dispUnit\" name=\"spGanttChartColumn_dispUnit\" id=\"spGanttChartColumn_dispUnit_" + key + "\" type=\"radio\" value=\"" + key + "\">";
         _dialogDiv += "<label for=\"spGanttChartColumn_dispUnit_" + key + "\">" + dispUnitKey[key].title + "</label>";
     });
+    _dialogDiv += "    </td>";
+    _dialogDiv += "  </tr>";
+    _dialogDiv += "  <tr>";
+    _dialogDiv += "    <th style=\"white-space: nowrap;\">表示開始日</th>";
+    _dialogDiv += "    <td style=\"white-space: nowrap;\"><input style=\"width:8em;\" class=\"spGanttChartColumn_dispBase\" type=\"text\" data-role=\"datebox\"><button class=\"spGanttChartColumn_dispBase_today\">今日</button></td>";
+    _dialogDiv += "  </tr>";
+    _dialogDiv += "  <tr>";
+    _dialogDiv += "    <th style=\"white-space: nowrap;\">表示期間</th>";
+    _dialogDiv += "    <td style=\"white-space: nowrap;\">";
+    _dialogDiv += "      <input style=\"width:8em;\" class=\"spGanttChartColumn_dispDuration\" type=\"text\">";
+    _dialogDiv += "      <input class=\"spGanttChartColumn_dispDuration_auto\" id=\"spGanttChartColumn_dispDuration_auto\" type=\"checkbox\">";
+    _dialogDiv += "      <label for=\"spGanttChartColumn_dispDuration_auto\">自動</label>";
     _dialogDiv += "    </td>";
     _dialogDiv += "  </tr>";
     _dialogDiv += "</table>";
@@ -80,7 +82,7 @@
     ,
         arrow: _defArrowDiv
     ,
-        arrowFormatter: function (row, cell, value, columnDef, dataContext, graph, index) {
+        arrowFormatter: function (row, cell, value, columnDef, dataContext, graph, index, dispUnit) {
             return $("<div>").css({
                 width: "100%"
             ,
@@ -97,8 +99,10 @@
         var _self = this;
         var _handler = new Slick.EventHandler();
         var _originalRender;
-        var borderD = null;
+        var underCellLayer = null;
+        var upperCellLayer = null;
         var dispDuration = 0;
+        var ganttChartData = [];
 
         function init(grid) {
             var _options = options;
@@ -122,6 +126,7 @@
 
             _handler
                 .subscribe(_grid.onHeaderClick, headerClick)
+                .subscribe(_grid.onClick, gridClick)
             ;
         }
 
@@ -155,235 +160,105 @@
             });
             _grid.setColumns(columns);
             _originalRender();
-            _grid.getCanvases().find(".sgArrow").on("click", function (event) {
-                var node = $(this);
-                var data = {
-                    row: node.attr("sgdata.row")
-                ,
-                    cell: node.attr("sgdata.cell")
-                ,
-                    graph: {
-                        start: new Date(node.attr("sgdata.graph.start"))
-                    ,
-                        duration: node.attr("sgdata.graph.duration")
-                    }
-                };
-                if (options.onArrowClick) {
-                    options.onArrowClick(data.row, data.cell, data.graph);
-                }
-            });
+            //_grid.getCanvases().find(".sgArrowContents").on("click", function (event) {
+            //    event.preventDefault();
+            //});
         }
 
         function formatter(row, cell, value, columnDef, dataContext) {
             var html = "";
 
-            switch (options.dispUnit) {
-                case dispUnitKey.D.value:
-                    html = formatterD(row, cell, value, columnDef, dataContext);
-                    break;
-                case dispUnitKey.W.value:
-                    html = formatterW(row, cell, value, columnDef, dataContext);
-                    break;
-                case dispUnitKey.M.value:
-                    html = formatterM(row, cell, value, columnDef, dataContext);
-                    break;
-            }
-
-            return html;
-        }
-
-        function formatterD(row, cell, value, columnDef, dataContext) {
-            var html = "";
-
             if (row < 0) {
                 var htmlY = "", preY = "";
                 var htmlM = "", preM = "";
                 var htmlD = "";
-                var today = Date.today();
-                borderD = "";
-                var tmpD = options.dispBase.clone();
-                var endD = tmpD.clone().addDays(dispDuration);
-                do {
-                    if (preY != tmpD.toString("yyyy")) {
-                        preY = tmpD.toString("yyyy");
-                        htmlY += "<span class=\"sgCell\" style=\"width:" + options.cellWidth + "px;\">" + preY + "</span>";
-                    } else {
-                        htmlY += "<span class=\"sgCell\" style=\"width:" + options.cellWidth + "px;\"><br /></span>";
-                    }
-                    if (preM != tmpD.toString("yyyyMM")) {
-                        preM = tmpD.toString("yyyyMM");
-                        htmlM += "<span class=\"sgCell\" style=\"width:" + options.cellWidth + "px;\">" + tmpD.toString("M") + "</span>";
-                    } else {
-                        htmlM += "<span class=\"sgCell\" style=\"width:" + options.cellWidth + "px;\"><br /></span>";
-                    }
-
-                    var cssClass = "sgCell";
-                    if ($.inArray(tmpD.toString("yyyy/MM/dd"), options.holidays) >= 0) {
-                        cssClass += " sgHolidays";
-                    }
-                    if (Date.equals(tmpD, today)) {
-                        cssClass += " sgTodays";
-                    }
-                    borderD += "<span class=\"" + cssClass + "\" style=\"width:" + options.cellWidth + "px;\"><br/></span>";
-                    htmlD += "<span class=\"sgCell\" style=\"width:" + options.cellWidth + "px;\">" + tmpD.toString(" d") + "</span>";
-                    tmpD.addDays(1);
-                } while (tmpD < endD);
-                html += "<span style=\"position:absolute;top:0;left:0;right:0;bottom:0;\">";
-
-                html += "<div style=\"width:100%;height:33%;\">" + htmlY + "</div>";
-                html += "<div style=\"width:100%;height:33%;\">" + htmlM + "</div>";
-                html += "<div style=\"width:100%;height:33%;\">" + htmlD + "</div>";
-
-                html += "</span>";
-            } else {
-                html += "<span style=\"position:absolute;top:0;left:0;right:0;bottom:0;\">";
-                html += "<div style=\"width:100%;height:100%;\">";
-                html += borderD;
-                html += "</div>";
-                html += "</span>";
-
-                var dispBaseTime = options.dispBase.getTime();
-                var dateTime = 1000 * 60 * 60 * 24;
-                if (value) {
-                    html += "<span style=\"position:absolute;top:0;left:0;right:0;bottom:0;padding:2px 0;\">";
-                    $.each(value, function (index, graph) {
-                        var start = Math.floor((graph.start.getTime() - dispBaseTime) / dateTime);
-                        var duration = graph.duration;
-                        html += makeArrow(row, cell, value, columnDef, dataContext, graph, index, start, duration);
-                    });
-                    html += "</span>";
-                }
-            }
-
-            return html;
-        }
-
-        function formatterW(row, cell, value, columnDef, dataContext) {
-            var html = "";
-
-            if (row < 0) {
-                var htmlY = "", preY = "";
-                var htmlM = "", preM = "";
-                var htmlD = "";
-                var today = Date.today().moveToDayOfWeek(1, -1);
-                borderD = "";
+                var today = getFormatterToday();
+                underCellLayer = "";
+                upperCellLayer = "";
+                var tmpD = getFormatterDay();
                 var dispUnitWFormat = options.dispUnitWFormat;
                 if (!dispUnitWFormat) {
                     dispUnitWFormat = "%W";
                 }
-                var tmpD = options.dispBase.clone();
-                tmpD = tmpD.moveToDayOfWeek(1, -1);
-                var endD = tmpD.clone().addWeeks(dispDuration);
-                do {
-                    if (preY != tmpD.toString("yyyy")) {
-                        preY = tmpD.toString("yyyy");
+                var dayIndex = 0;
+                var cellWidth = options.cellWidth;
+                for (dayIndex = 0; dayIndex < dispDuration; dayIndex++) {
+                    var yyyy = tmpD.toString("yyyy");
+                    var yyyyMM = tmpD.toString("yyyyMM");
+                    var mValue = tmpD.toString("M");
+                    var dValue = null;
+                    switch (options.dispUnit) {
+                        case dispUnitKey.D.value:
+                            dValue = tmpD.toString(" d");
+                            break;
+                        case dispUnitKey.W.value:
+                            dValue = tmpD.format(dispUnitWFormat);
+                            break;
+                        case dispUnitKey.M.value:
+                            break;
+                    }
+
+                    if (preY != yyyy) {
+                        preY = yyyy;
                         htmlY += "<span class=\"sgCell\" style=\"width:" + options.cellWidth + "px;\">" + preY + "</span>";
                     } else {
                         htmlY += "<span class=\"sgCell\" style=\"width:" + options.cellWidth + "px;\"><br /></span>";
                     }
-                    if (preM != tmpD.toString("yyyyMM")) {
-                        preM = tmpD.toString("yyyyMM");
-                        htmlM += "<span class=\"sgCell\" style=\"width:" + options.cellWidth + "px;\">" + tmpD.toString("M") + "</span>";
+                    if (preM != yyyyMM) {
+                        preM = yyyyMM;
+                        htmlM += "<span class=\"sgCell\" style=\"width:" + options.cellWidth + "px;\">" + mValue + "</span>";
                     } else {
                         htmlM += "<span class=\"sgCell\" style=\"width:" + options.cellWidth + "px;\"><br /></span>";
                     }
 
-                    var cssClass = "sgCell";
-                    if (Date.equals(tmpD, today)) {
-                        cssClass += " sgTodays";
+                    var cssClass = "sgCell" + checkHoliday(tmpD) + checkToday(tmpD, today);
+                    if (dayIndex + 1 == dispDuration) {
+                        cellWidth = options.cellWidth * 2;
                     }
-                    borderD += "<span class=\"" + cssClass + "\" style=\"width:" + options.cellWidth + "px;\"><br/></span>";
-                    htmlD += "<span class=\"sgCell\" style=\"width:" + options.cellWidth + "px;\">" + tmpD.format(dispUnitWFormat) + "</span>";
-                    tmpD.addWeeks(1);
-                } while (tmpD < endD);
+                    underCellLayer += "<span class=\"" + cssClass + "\" style=\"width:" + cellWidth + "px;\"><br/></span>";
+                    upperCellLayer += "<span class=\"sgCell sgCellLayer\" style=\"width:" + cellWidth + "px;\" sgdata.index=\"" + dayIndex + "\">&nbsp;</span>";
+
+                    if (dValue) {
+                        htmlD += "<span class=\"sgCell\" style=\"width:" + options.cellWidth + "px;\">" + dValue + "</span>";
+                    }
+                    switch (options.dispUnit) {
+                        case dispUnitKey.D.value:
+                            tmpD.addDays(1);
+                            break;
+                        case dispUnitKey.W.value:
+                            tmpD.addWeeks(1);
+                            break;
+                        case dispUnitKey.M.value:
+                            tmpD.addMonths(1);
+                            break;
+                    }
+                }
+
                 html += "<span style=\"position:absolute;top:0;left:0;right:0;bottom:0;\">";
-
-                html += "<div style=\"width:100%;height:33%;\">" + htmlY + "</div>";
-                html += "<div style=\"width:100%;height:33%;\">" + htmlM + "</div>";
-                html += "<div style=\"width:100%;height:33%;\">" + htmlD + "</div>";
-
+                html += outputYMD(htmlY, htmlM, htmlD);
                 html += "</span>";
             } else {
                 html += "<span style=\"position:absolute;top:0;left:0;right:0;bottom:0;\">";
                 html += "<div style=\"width:100%;height:100%;\">";
-                html += borderD;
+                html += underCellLayer;
                 html += "</div>";
                 html += "</span>";
 
-                var dispBaseTime = options.dispBase.clone().moveToDayOfWeek(1, -1).format("%W");
+                var dispBaseTime = getDispBaseTime();
                 if (value) {
                     html += "<span style=\"position:absolute;top:0;left:0;right:0;bottom:0;padding:2px 0;\">";
                     $.each(value, function (index, graph) {
-                        var startW = graph.start.format("%W");
-                        var start = startW - dispBaseTime;
-                        var durationW = graph.start.clone().addDays(graph.duration).format("%W");
-                        var duration = durationW - startW + 1;
-                        html += makeArrow(row, cell, value, columnDef, dataContext, graph, index, start, duration);
+                        var range = CaclRange(graph, dispBaseTime);
+                        html += makeArrow(row, cell, value, columnDef, dataContext, graph, index, range.start, range.duration);
                     });
                     html += "</span>";
                 }
-            }
 
-            return html;
-        }
-
-        function formatterM(row, cell, value, columnDef, dataContext) {
-            var html = "";
-
-            if (row < 0) {
-                var htmlY = "", preY = "";
-                var htmlM = "", preM = "";
-                var htmlD = "";
-                var today = Date.today().moveToFirstDayOfMonth();
-                borderD = "";
-                var tmpD = options.dispBase.clone();
-                tmpD = tmpD.moveToFirstDayOfMonth();
-                var endD = tmpD.clone().addMonths(dispDuration);
-                do {
-                    if (preY != tmpD.toString("yyyy")) {
-                        preY = tmpD.toString("yyyy");
-                        htmlY += "<span class=\"sgCell\" style=\"width:" + options.cellWidth + "px;\">" + preY + "</span>";
-                    } else {
-                        htmlY += "<span class=\"sgCell\" style=\"width:" + options.cellWidth + "px;\"><br /></span>";
-                    }
-                    if (preM != tmpD.toString("yyyyMM")) {
-                        preM = tmpD.toString("yyyyMM");
-                        htmlM += "<span class=\"sgCell\" style=\"width:" + options.cellWidth + "px;\">" + tmpD.toString("M") + "</span>";
-                    } else {
-                        htmlM += "<span class=\"sgCell\" style=\"width:" + options.cellWidth + "px;\"><br /></span>";
-                    }
-                    var cssClass = "sgCell";
-                    if (Date.equals(tmpD, today)) {
-                        cssClass += " sgTodays";
-                    }
-                    borderD += "<span class=\"" + cssClass + "\" style=\"width:" + options.cellWidth + "px;\"><br/></span>";
-                    tmpD.addMonths(1);
-                } while (tmpD < endD);
-                html += "<span style=\"position:absolute;top:0;left:0;right:0;bottom:0;\">";
-
-                html += "<div style=\"width:100%;height:50%;\">" + htmlY + "</div>";
-                html += "<div style=\"width:100%;height:50%;\">" + htmlM + "</div>";
-
-                html += "</span>";
-            } else {
                 html += "<span style=\"position:absolute;top:0;left:0;right:0;bottom:0;\">";
                 html += "<div style=\"width:100%;height:100%;\">";
-                html += borderD;
+                html += outerHTML($(upperCellLayer).attr("sgdata.row", row));
                 html += "</div>";
                 html += "</span>";
-
-                var dispBaseTime = options.dispBase.toString("M");
-                if (value) {
-                    html += "<span style=\"position:absolute;top:0;left:0;right:0;bottom:0;padding:2px 0;\">";
-                    $.each(value, function (index, graph) {
-                        var startM = graph.start.toString("M");
-                        var start = startM - dispBaseTime;
-                        var durationM = graph.start.clone().addDays(graph.duration).toString("M");
-                        var duration = durationM - startM + 1;
-                        html += makeArrow(row, cell, value, columnDef, dataContext, graph, index, start, duration);
-                    });
-                    html += "</span>";
-                }
             }
 
             return html;
@@ -396,10 +271,11 @@
             bar.prop("title", graph.start.toString("yyyy/MM/dd") + "から" + graph.duration + "日間");
             bar.attr("sgdata.row", row);
             bar.attr("sgdata.cell", cell);
-            bar.attr("sgdata.graph.start", graph.start.toString("yyyy/MM/dd"));
-            bar.attr("sgdata.graph.duration", graph.duration);
+            bar.attr("sgdata.start", start);
+            bar.attr("sgdata.end", start + duration - 1);
+            bar.attr("sgdata.graph", JSON.stringify(graph));
             if (options.arrowFormatter) {
-                bar.children(".sgArrowContents").html(options.arrowFormatter(row, cell, value, columnDef, dataContext, graph, index));
+                bar.children(".sgArrowContents").html(options.arrowFormatter(row, cell, value, columnDef, dataContext, graph, index, options.dispUnit));
             }
 
             return outerHTML(bar);
@@ -409,6 +285,31 @@
             var column = args.column;
             if (checkTargetColumn(column)) {
                 getDialog().dialog("open");
+            }
+        }
+
+        function gridClick(e, args) {
+            var row = args.row;
+            var col = args.cell;
+            var column = _grid.getColumns()[col];
+
+            if (checkTargetColumn(column)) {
+                var src = $(e.target);
+                var sgArrow = src.closest(".sgArrow");
+                if (sgArrow.length) {
+                    var data = {
+                        row: sgArrow.attr("sgdata.row")
+                    ,
+                        cell: sgArrow.attr("sgdata.cell")
+                    ,
+                        graph: JSON.parse(sgArrow.attr("sgdata.graph"))
+                    };
+                    if (options.onArrowClick) {
+                        options.onArrowClick(data.row, data.cell, data.graph, sgArrow);
+                    }
+                } else {
+                }
+                window.alert("[" + sgArrow.attr("sgdata.start") + "～" + sgArrow.attr("sgdata.end") + "(" + src.attr("sgdata.row") + "," + src.attr("sgdata.index") + ")]");
             }
         }
 
@@ -445,6 +346,14 @@
             options.arrow = arrow;
         }
 
+        function setArrowFormatter(arrowFormatter) {
+            options.arrowFormatter = arrowFormatter;
+        }
+
+        function setOnArrowClick(onArrowClick) {
+            options.onArrowClick = onArrowClick;
+        }
+
         function setHoliday(holidays) {
             options.holidays = holidays;
         }
@@ -475,6 +384,10 @@
                     resizable: false
                 ,
                     modal: true
+                ,
+                    width: "auto"
+                ,
+                    height: "auto"
                 ,
                     title: "チャート操作"
                 ,
@@ -511,6 +424,132 @@
             return dialog;
         }
 
+        function getFormatterToday() {
+            var today = null;
+
+            switch (options.dispUnit) {
+                case dispUnitKey.D.value:
+                    today = Date.today();
+                    break;
+                case dispUnitKey.W.value:
+                    today = Date.today().moveToDayOfWeek(1, -1);
+                    break;
+                case dispUnitKey.M.value:
+                    today = Date.today().moveToFirstDayOfMonth();
+                    break;
+            }
+
+            return today;
+        }
+
+        function getFormatterDay() {
+            var tmpD = options.dispBase.clone();
+
+            switch (options.dispUnit) {
+                case dispUnitKey.D.value:
+                    break;
+                case dispUnitKey.W.value:
+                    tmpD = tmpD.moveToDayOfWeek(1, -1);
+                    break;
+                case dispUnitKey.M.value:
+                    tmpD = tmpD.moveToFirstDayOfMonth();
+                    break;
+            }
+
+            return tmpD;
+        }
+
+        function checkHoliday(tmpD) {
+            var cssClass = "";
+
+            switch (options.dispUnit) {
+                case dispUnitKey.D.value:
+                    if ($.inArray(tmpD.toString("yyyy/MM/dd"), options.holidays) >= 0) {
+                        cssClass = " sgHolidays";
+                    }
+                    break;
+            }
+
+            return cssClass;
+        }
+
+        function checkToday(tmpD, today) {
+            var cssClass = "";
+
+            if (Date.equals(tmpD, today)) {
+                cssClass = " sgTodays";
+            }
+
+            return cssClass;
+        }
+
+        function outputYMD(htmlY, htmlM, htmlD) {
+            var html = "";
+
+            switch (options.dispUnit) {
+                case dispUnitKey.D.value:
+                case dispUnitKey.W.value:
+                    html += "<div style=\"width:100%;height:33%;\">" + htmlY + "</div>";
+                    html += "<div style=\"width:100%;height:33%;\">" + htmlM + "</div>";
+                    html += "<div style=\"width:100%;height:33%;\">" + htmlD + "</div>";
+                    break;
+                case dispUnitKey.M.value:
+                    html += "<div style=\"width:100%;height:50%;\">" + htmlY + "</div>";
+                    html += "<div style=\"width:100%;height:50%;\">" + htmlM + "</div>";
+                    break;
+            }
+
+            return html;
+        }
+
+        function getDispBaseTime() {
+            var dispBaseTime = null;
+
+            switch (options.dispUnit) {
+                case dispUnitKey.D.value:
+                    dispBaseTime = options.dispBase.getTime();
+                    break;
+                case dispUnitKey.W.value:
+                    dispBaseTime = options.dispBase.clone().moveToDayOfWeek(1, -1).format("%W");
+                    break;
+                case dispUnitKey.M.value:
+                    dispBaseTime = options.dispBase.toString("M");
+                    break;
+            }
+
+            return dispBaseTime;
+        }
+
+        function CaclRange(graph, dispBaseTime) {
+            var start = null;
+            var duration = null;
+
+            switch (options.dispUnit) {
+                case dispUnitKey.D.value:
+                    start = Math.floor((graph.start.getTime() - dispBaseTime) / dateTime);
+                    duration = graph.duration;
+                    break;
+                case dispUnitKey.W.value:
+                    var startW = graph.start.format("%W");
+                    start = startW - dispBaseTime;
+                    var durationW = graph.start.clone().addDays(graph.duration).format("%W");
+                    duration = durationW - startW + 1;
+                    break;
+                case dispUnitKey.M.value:
+                    var startM = graph.start.toString("M");
+                    start = startM - dispBaseTime;
+                    var durationM = graph.start.clone().addDays(graph.duration).toString("M");
+                    duration = durationM - startM + 1;
+                    break;
+            }
+
+            return {
+                start: start
+            ,
+                duration: duration
+            };
+        }
+
         function outerHTML(target) {
             return jQuery("<p>").append(target).html();
         }
@@ -525,7 +564,11 @@
         ,
             "setDuration": setDuration
         ,
-            "setBar": setArrow
+            "setArrow": setArrow
+        ,
+            "setArrowFormatter": setArrowFormatter
+        ,
+            "setOnArrowClick": setOnArrowClick
         ,
             "setHoliday": setHoliday
         ,
