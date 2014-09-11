@@ -160,9 +160,6 @@
             });
             _grid.setColumns(columns);
             _originalRender();
-            //_grid.getCanvases().find(".sgArrowContents").on("click", function (event) {
-            //    event.preventDefault();
-            //});
         }
 
         function formatter(row, cell, value, columnDef, dataContext) {
@@ -246,7 +243,7 @@
 
                 var dispBaseTime = getDispBaseTime();
                 if (value) {
-                    html += "<span style=\"position:absolute;top:0;left:0;right:0;bottom:0;padding:2px 0;\">";
+                    html += "<span class=\"sgBar\" style=\"position:absolute;top:0;left:0;right:0;bottom:0;padding:2px 0;\">";
                     $.each(value, function (index, graph) {
                         var range = CaclRange(graph, dispBaseTime);
                         html += makeArrow(row, cell, value, columnDef, dataContext, graph, index, range.start, range.duration);
@@ -295,21 +292,14 @@
 
             if (checkTargetColumn(column)) {
                 var src = $(e.target);
-                var sgArrow = src.closest(".sgArrow");
-                if (sgArrow.length) {
-                    var data = {
-                        row: sgArrow.attr("sgdata.row")
-                    ,
-                        cell: sgArrow.attr("sgdata.cell")
-                    ,
-                        graph: JSON.parse(sgArrow.attr("sgdata.graph"))
-                    };
-                    if (options.onArrowClick) {
-                        options.onArrowClick(data.row, data.cell, data.graph, sgArrow);
-                    }
-                } else {
-                }
-                window.alert("[" + sgArrow.attr("sgdata.start") + "～" + sgArrow.attr("sgdata.end") + "(" + src.attr("sgdata.row") + "," + src.attr("sgdata.index") + ")]");
+                var data = _grid.getDataItem(src.attr("sgdata.row"));
+                var sgBar = src.closest(".sgGanttChart").children(".sgBar");
+                var index = eval(src.attr("sgdata.index"));
+                var list = sgBar.children().filter(function () {
+                    var sgArrow = $(this);
+                    return sgArrow.hasClass("sgArrow") && eval(sgArrow.attr("sgdata.start")) <= index && index <= eval(sgArrow.attr("sgdata.end"));
+                });
+                window.alert("(" + src.attr("sgdata.row") + "," + src.attr("sgdata.index") + ")=" + list.length);
             }
         }
 
@@ -532,13 +522,13 @@
                 case dispUnitKey.W.value:
                     var startW = graph.start.format("%W");
                     start = startW - dispBaseTime;
-                    var durationW = graph.start.clone().addDays(graph.duration).format("%W");
+                    var durationW = graph.start.clone().addDays(graph.duration - 1).format("%W");
                     duration = durationW - startW + 1;
                     break;
                 case dispUnitKey.M.value:
                     var startM = graph.start.toString("M");
                     start = startM - dispBaseTime;
-                    var durationM = graph.start.clone().addDays(graph.duration).toString("M");
+                    var durationM = graph.start.clone().addDays(graph.duration - 1).toString("M");
                     duration = durationM - startM + 1;
                     break;
             }
