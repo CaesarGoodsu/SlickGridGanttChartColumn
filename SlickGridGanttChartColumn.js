@@ -61,6 +61,10 @@
                 html += "<div style=\"width:100%;height:33%;\">" + htmlD + "</div>";
                 return html;
             }
+        ,
+            getDispBase: function (dispDuration) {
+                return Date.today().addDays(-1 * dispDuration * 0.5);
+            }
         }
     ,
         W: {
@@ -114,6 +118,10 @@
                 html += "<div style=\"width:100%;height:33%;\">" + htmlD + "</div>";
                 return html;
             }
+        ,
+            getDispBase: function (dispDuration) {
+                return Date.today().addWeeks(-5);
+            }
         }
     ,
         M: {
@@ -162,6 +170,12 @@
                 html += "<div style=\"width:100%;height:50%;\">" + htmlM + "</div>";
                 return html;
             }
+        ,
+            getDispBase: function (dispDuration) {
+                var result = Date.today();
+                result.setMonth(3, 1);
+                return result;
+            }
         }
     }
 
@@ -182,7 +196,10 @@
     _dialogDiv += "  </tr>";
     _dialogDiv += "  <tr>";
     _dialogDiv += "    <th style=\"white-space: nowrap;\">表示開始日</th>";
-    _dialogDiv += "    <td style=\"white-space: nowrap;\"><input style=\"width:8em;\" class=\"spGanttChartColumn_dispBase\" type=\"text\" data-role=\"datebox\"><button class=\"spGanttChartColumn_dispBase_today\">今日</button></td>";
+    _dialogDiv += "    <td style=\"white-space: nowrap;\">";
+    _dialogDiv += "      <input style=\"width:8em;\" class=\"spGanttChartColumn_dispBase\" type=\"text\" data-role=\"datebox\">";
+    _dialogDiv += "      <button class=\"spGanttChartColumn_dispBase_today\">今日</button>";
+    _dialogDiv += "    </td>";
     _dialogDiv += "  </tr>";
     _dialogDiv += "  <tr>";
     _dialogDiv += "    <th style=\"white-space: nowrap;\">表示期間</th>";
@@ -202,8 +219,6 @@
     _defArrowDiv = $(_defArrowDiv);
 
     var _defaults = {
-        dispBase: Date.today()
-    ,
         cellWidth: 30
     ,
         dispDuration: "auto"
@@ -273,29 +288,7 @@
         }
 
         function render() {
-            var columns = _grid.getColumns();
-            $.each(columns, function (index, column) {
-                if (checkTargetColumn(column)) {
-                    var width = 0;
-                    if (options.dispDuration === "auto") {
-                        if (!column.resizable) {
-                            column.resizable = true;
-                            _grid.autosizeColumns();
-                        }
-                        width = column.width;
-                        if (width > 0) {
-                            dispDuration = Math.round(width / options.cellWidth);
-                        }
-                    } else {
-                        column.width = options.dispDuration * options.cellWidth;
-                        column.resizable = false;
-                        dispDuration = options.dispDuration;
-                    }
-                    column.name = formatter(-1, -1, null, column, null);
-                    column.formatter = formatter;
-                }
-            });
-            _grid.setColumns(columns);
+            caclDispDuration();
             _originalRender();
         }
 
@@ -346,7 +339,7 @@
                         htmlD += "<span class=\"sgCell\" style=\"width:" + options.cellWidth + "px;\">" + dValue + "</span>";
                     }
                     tmpD = options.dispUnit.nextDate(tmpD);
-                }
+                };
 
                 html += "<span style=\"position:absolute;top:0;left:0;right:0;bottom:0;\">";
                 html += options.dispUnit.outputYMD(htmlY, htmlM, htmlD);
@@ -455,14 +448,19 @@
             options.arrow = arrow;
         }
 
+        function parseDispUnit(dispUnit) {
+            $.each(dispUnitKey, function (index, unit) {
+                if (unit.value == dispUnit) {
+                    dispUnit = unit;
+                }
+            });
+            return dispUnit;
+        }
+
         function setDispUnit(dispUnit) {
             switch (typeof (dispUnit)) {
                 case "string":
-                    $.each(dispUnitKey, function (index, unit) {
-                        if (unit.value == dispUnit) {
-                            dispUnit = unit;
-                        }
-                    });
+                    dispUnit = parseDispUnit(dispUnit);
                     break;
                 case "object":
                     break;
@@ -492,6 +490,18 @@
             var dialog = $("#spGanttChartColumn_dialog");
             if (!dialog.length) {
                 dialog = $(_dialogDiv).appendTo(hidden);
+                dialog.find(".spGanttChartColumn_dispUnit").on("click", function (event) {
+                    var dispBase = null;
+                    var dispUnit = parseDispUnit($(this).val());
+
+                    if (options.onSelectDispUnit) {
+                        dispBase = options.onSelectDispUnit(event, dispUnit, dispDuration);
+                    } else {
+                        dispBase = dispUnit.getDispBase(dispDuration);
+                    }
+
+                    dialog.find(".spGanttChartColumn_dispBase").val(dispBase.toString("yyyy/MM/dd"));
+                });
                 dialog.find(".spGanttChartColumn_dispBase_today").on("click", function (event) {
                     dialog.find(".spGanttChartColumn_dispBase").val(Date.today().toString("yyyy/MM/dd"));
                 });
@@ -504,39 +514,43 @@
                         txt.focus();
                     }
                 });
-                dialog.dialog({
-                    autoOpen: false
-                ,
-                    resizable: false
-                ,
-                    modal: true
-                ,
-                    width: "auto"
-                ,
-                    height: "auto"
-                ,
-                    title: "チャート操作"
-                ,
-                    buttons: [
-                        {
-                            text: "適用"
-                        ,
-                            click: function () {
-                                $(this).dialog("close");
-                                setFrom($(this).find(".spGanttChartColumn_dispBase").val());
-                                if ($(this).find(".spGanttChartColumn_dispDuration_auto").is(":checked")) {
-                                    setDuration("auto");
-                                } else {
-                                    setDuration(eval($(this).find(".spGanttChartColumn_dispDuration").val()));
+                dialog
+                    .dialog({
+                        autoOpen: false
+                    ,
+                        resizable: false
+                    ,
+                        modal: true
+                    ,
+                        width: "auto"
+                    ,
+                        height: "auto"
+                    ,
+                        title: "チャート操作"
+                    ,
+                        buttons: [
+                            {
+                                text: "適用"
+                            ,
+                                click: function () {
+                                    $(this).dialog("close");
+                                    setFrom($(this).find(".spGanttChartColumn_dispBase").val());
+                                    if ($(this).find(".spGanttChartColumn_dispDuration_auto").is(":checked")) {
+                                        setDuration("auto");
+                                    } else {
+                                        setDuration(eval($(this).find(".spGanttChartColumn_dispDuration").val()));
+                                    }
+                                    setDispUnit($(this).find(".spGanttChartColumn_dispUnit:checked").val());
+                                    _grid.render();
                                 }
-                                setDispUnit($(this).find(".spGanttChartColumn_dispUnit:checked").val());
-                                _grid.render();
                             }
-                        }
-                    ]
-                });
+                        ]
+                    })
+                    .on("dialogopen.sggcc", function () {
+                        dialog.find(".spGanttChartColumn_dispBase").val(options.dispBase.toString("yyyy/MM/dd"));
+                    });
+                ;
             }
-            dialog.find(".spGanttChartColumn_dispBase").val(options.dispBase.toString("yyyy/MM/dd"));
             switch (typeof (options.dispDuration)) {
                 case "string":
                     dialog.find(".spGanttChartColumn_dispDuration").val("");
@@ -558,6 +572,45 @@
             }
 
             return cssClass;
+        }
+
+        function getCellDate(gCol) {
+            var tmpD = options.dispUnit.getDate(options.dispBase);
+
+            for (dayIndex = 0; dayIndex < gCol; dayIndex++) {
+                tmpD = options.dispUnit.nextDate(tmpD);
+            };
+
+            return tmpD;
+        }
+
+        function caclDispDuration() {
+            var columns = _grid.getColumns();
+            $.each(columns, function (index, column) {
+                if (checkTargetColumn(column)) {
+                    var width = 0;
+                    if (options.dispDuration === "auto") {
+                        if (!column.resizable) {
+                            column.resizable = true;
+                            _grid.autosizeColumns();
+                        }
+                        width = column.width;
+                        if (width > 0) {
+                            dispDuration = Math.round(width / options.cellWidth);
+                        }
+                    } else {
+                        column.width = options.dispDuration * options.cellWidth;
+                        column.resizable = false;
+                        dispDuration = options.dispDuration;
+                    }
+                    if (!options.dispBase) {
+                        options.dispBase = options.dispUnit.getDispBase(dispDuration);
+                    }
+                    column.name = formatter(-1, -1, null, column, null);
+                    column.formatter = formatter;
+                }
+            });
+            _grid.setColumns(columns);
         }
 
         function outerHTML(target) {
@@ -583,6 +636,8 @@
             "setHoliday": setHoliday
         ,
             "getOptionDialog": getDialog
+        ,
+            "getCellDate": getCellDate
         });
     }
 })(jQuery);
