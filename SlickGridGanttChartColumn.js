@@ -120,7 +120,7 @@
             }
         ,
             getDispBase: function (dispDuration) {
-                return Date.today().addWeeks(-5);
+                return Date.today().addWeeks(-4);
             }
         }
     ,
@@ -238,7 +238,7 @@
                 height: "100%"
             ,
                 "background-color": "green"
-            });
+            }).addClass("ui-corner-all");
         }
     ,
         dispUnitWFormat: null
@@ -333,10 +333,10 @@
                         cellWidth = options.cellWidth * 2;
                     }
                     underCellLayer += "<span class=\"" + cssClass + "\" style=\"width:" + cellWidth + "px;\"><br/></span>";
-                    upperCellLayer += "<span class=\"sgCell sgCellLayer\" style=\"width:" + cellWidth + "px;\" sgdata.index=\"" + dayIndex + "\">&nbsp;</span>";
+                    upperCellLayer += "<span class=\"sgCell\" style=\"width:" + cellWidth + "px;\" sgdata.index=\"" + dayIndex + "\"><br/></span>";
 
                     if (dValue) {
-                        htmlD += "<span class=\"sgCell\" style=\"width:" + options.cellWidth + "px;\">" + dValue + "</span>";
+                        htmlD += "<span class=\"" + cssClass + "\" style=\"width:" + options.cellWidth + "px;\">" + dValue + "</span>";
                     }
                     tmpD = options.dispUnit.nextDate(tmpD);
                 };
@@ -360,6 +360,11 @@
                     });
                     html += "</span>";
                 }
+
+                html += "<span class=\"sgCellLayer\" style=\"position:absolute;top:0;left:0;right:0;bottom:0;\">";
+                html += "<div style=\"width:100%;height:100%;\">";
+                html += "</div>";
+                html += "</span>";
 
                 html += "<span style=\"position:absolute;top:0;left:0;right:0;bottom:0;\">";
                 html += "<div style=\"width:100%;height:100%;\">";
