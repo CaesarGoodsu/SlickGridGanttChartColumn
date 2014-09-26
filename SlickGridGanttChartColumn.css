@@ -24,6 +24,6 @@
 }
 
 .sgCellLayer {
-    background: #FFFFFF\9;/*IE8 hack*/
-    filter:progid:DXImageTransform.Microsoft.Alpha(Style=3,Opacity=0);
+    background: #FFFFFF\9; /*IE8 hack*/
+    filter: progid:DXImageTransform.Microsoft.Alpha(Style=3,Opacity=0);
 }
