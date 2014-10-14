@@ -25,8 +25,12 @@
                 return d.toString(" d");
             }
         ,
-            nextDate: function (d) {
-                return d.addDays(1);
+            nextDate: function (d, cnt) {
+                if (!cnt) {
+                    cnt = 1;
+                }
+
+                return d.addDays(cnt);
             }
         ,
             checkHoliday: function (d, holidays) {
@@ -43,9 +47,17 @@
                 return dispUnitKey.D.getDate(dispBase).getTime();
             }
         ,
-            calcRange: function (graph, dispBaseTime) {
+            calcRange: function (graph, dispBaseTime, lastDate) {
                 start = Math.floor((graph.start.getTime() - dispBaseTime) / dateTime);
-                duration = graph.duration;
+                if (graph.duration > 0) {
+                    duration = graph.duration;
+                } else {
+                    if (Date.today().isAfter(graph.start)) {
+                        duration = Math.floor((Date.today() - graph.start) / (1000 * 60 * 60 * 24)) + 1;
+                    } else {
+                        duration = Math.floor((lastDate - graph.start) / (1000 * 60 * 60 * 24)) + 1;
+                    }
+                }
 
                 return {
                     start: start
@@ -84,8 +96,12 @@
                 return d.format(format);
             }
         ,
-            nextDate: function (d) {
-                return d.addWeeks(1);
+            nextDate: function (d, cnt) {
+                if (!cnt) {
+                    cnt = 1;
+                }
+
+                return d.addWeeks(cnt);
             }
         ,
             checkHoliday: function (d, holidays) {
@@ -95,13 +111,36 @@
             }
         ,
             getBaseTime: function (dispBase) {
-                return dispUnitKey.W.getDate(dispBase).format("%W");
+                return dispUnitKey.W.getDate(dispBase).format("%U");
             }
         ,
-            calcRange: function (graph, dispBaseTime) {
-                var startW = graph.start.format("%W");
+            calcRange: function (graph, dispBaseTime, lastDate) {
+                var startW = graph.start.format("%U");
                 start = startW - dispBaseTime;
-                var durationW = graph.start.clone().addDays(graph.duration - 1).format("%W");
+                var durationW = -1;
+                if (graph.duration > 0) {
+                    lastDate = graph.start.clone().addDays(graph.duration - 1);
+                } else {
+                    if (Date.today().isAfter(graph.start)) {
+                        lastDate = Date.today();
+                    }
+                }
+                durationW = parseInt(lastDate.format("%U"));
+                var lYear = lastDate.getYear();
+                switch (true) {
+                    case graph.start.getYear() == lYear:
+                        break;
+                    case graph.start.getYear() < lYear:
+                        var cal = graph.start.clone();
+                        do {
+                            cal = cal.moveToFirstDayOfMonth().moveToMonth(0).addDays(-1);
+                            durationW += parseInt(cal.format("%U"));
+                            cal.addDays(1);
+                        } while (cal.getYear() < lYear);
+                        break;
+                    default:
+                        throw Error("想定外Death!!");
+                }
                 duration = durationW - startW + 1;
 
                 return {
@@ -137,8 +176,12 @@
                 return null;
             }
         ,
-            nextDate: function (d) {
-                return d.addMonths(1);
+            nextDate: function (d, cnt) {
+                if (!cnt) {
+                    cnt = 1;
+                }
+
+                return d.addMonths(cnt);
             }
         ,
             checkHoliday: function (d, holidays) {
@@ -151,10 +194,33 @@
                 return dispUnitKey.M.getDate(dispBase).toString("M");
             }
         ,
-            calcRange: function (graph, dispBaseTime) {
+            calcRange: function (graph, dispBaseTime, lastDate) {
                 var startM = graph.start.toString("M");
                 start = startM - dispBaseTime;
-                var durationM = graph.start.clone().addDays(graph.duration - 1).toString("M");
+                var durationM = -1;
+                if (graph.duration > 0) {
+                    lastDate = graph.start.clone().addDays(graph.duration - 1);
+                } else {
+                    if (Date.today().isAfter(graph.start)) {
+                        lastDate = Date.today();
+                    }
+                }
+                durationM = parseInt(lastDate.toString("M"));
+                var lYear = lastDate.getYear();
+                switch (true) {
+                    case graph.start.getYear() == lYear:
+                        break;
+                    case graph.start.getYear() < lYear:
+                        var cal = graph.start.clone();
+                        do {
+                            cal = cal.moveToFirstDayOfMonth().moveToMonth(0).addDays(-1);
+                            durationM += parseInt(cal.toString("M"));
+                            cal.addDays(1);
+                        } while (cal.getYear() < lYear);
+                        break;
+                    default:
+                        throw Error("想定外Death!!");
+                }
                 duration = durationM - startM + 1;
 
                 return {
@@ -180,37 +246,6 @@
     }
 
     var _hiddenDiv = "<div id=\"spGanttChartColumn_hidden\" style=\"display:none;\">";
-    var _dialogDiv = "<div id=\"spGanttChartColumn_dialog\">";
-    _dialogDiv += "";
-    _dialogDiv += "<table>";
-    _dialogDiv += "  <tr>";
-    _dialogDiv += "    <th style=\"white-space: nowrap;\">表示単位</th>";
-    _dialogDiv += "    <td style=\"white-space: nowrap;\">";
-    $.each($.map(dispUnitKey, function (value, key) {
-        return key;
-    }), function (index, key) {
-        _dialogDiv += "<input class=\"spGanttChartColumn_dispUnit\" name=\"spGanttChartColumn_dispUnit\" id=\"spGanttChartColumn_dispUnit_" + key + "\" type=\"radio\" value=\"" + key + "\">";
-        _dialogDiv += "<label for=\"spGanttChartColumn_dispUnit_" + key + "\">" + dispUnitKey[key].title + "</label>";
-    });
-    _dialogDiv += "    </td>";
-    _dialogDiv += "  </tr>";
-    _dialogDiv += "  <tr>";
-    _dialogDiv += "    <th style=\"white-space: nowrap;\">表示開始日</th>";
-    _dialogDiv += "    <td style=\"white-space: nowrap;\">";
-    _dialogDiv += "      <input style=\"width:8em;\" class=\"spGanttChartColumn_dispBase\" type=\"text\" data-role=\"datebox\">";
-    _dialogDiv += "      <button class=\"spGanttChartColumn_dispBase_today\">今日</button>";
-    _dialogDiv += "    </td>";
-    _dialogDiv += "  </tr>";
-    _dialogDiv += "  <tr>";
-    _dialogDiv += "    <th style=\"white-space: nowrap;\">表示期間</th>";
-    _dialogDiv += "    <td style=\"white-space: nowrap;\">";
-    _dialogDiv += "      <input style=\"width:8em;\" class=\"spGanttChartColumn_dispDuration\" type=\"text\">";
-    _dialogDiv += "      <input class=\"spGanttChartColumn_dispDuration_auto\" id=\"spGanttChartColumn_dispDuration_auto\" type=\"checkbox\">";
-    _dialogDiv += "      <label for=\"spGanttChartColumn_dispDuration_auto\">自動</label>";
-    _dialogDiv += "    </td>";
-    _dialogDiv += "  </tr>";
-    _dialogDiv += "</table>";
-    _dialogDiv += "</div>";
 
     var _defArrowDiv = "<div class=\"sgArrow\">";
     _defArrowDiv += "<span class=\"sgArrowContents\">";
@@ -228,6 +263,8 @@
         holidays: []
     ,
         dispUnit: dispUnitKey.D
+    ,
+        dispUnitKey: dispUnitKey
     ,
         arrow: _defArrowDiv
     ,
@@ -265,6 +302,9 @@
                         break;
                     case "dispUnit":
                         setDispUnit(_options[key]);
+                        break;
+                    case "dispUnitKey":
+                        setDispUnitKey(_options[key]);
                         break;
                     default:
                         options[key] = _options[key];
@@ -305,7 +345,7 @@
                 var tmpD = options.dispUnit.getDate(options.dispBase);
                 var dispUnitWFormat = options.dispUnitWFormat;
                 if (!dispUnitWFormat) {
-                    dispUnitWFormat = "%W";
+                    dispUnitWFormat = "%U";
                 }
                 var dayIndex = 0;
                 var cellWidth = options.cellWidth;
@@ -351,11 +391,12 @@
                 html += "</div>";
                 html += "</span>";
 
+                var lastDate = options.dispUnit.nextDate(options.dispUnit.getDate(options.dispBase), dispDuration);
                 var dispBaseTime = options.dispUnit.getBaseTime(options.dispBase);
                 if (value) {
                     html += "<span class=\"sgBar\" style=\"position:absolute;top:0;left:0;right:0;bottom:0;padding:2px 0;\">";
                     $.each(value, function (index, graph) {
-                        var range = options.dispUnit.calcRange(graph, dispBaseTime);
+                        var range = options.dispUnit.calcRange(graph, dispBaseTime, lastDate);
                         html += makeArrow(row, cell, value, columnDef, dataContext, graph, index, range.start, range.duration);
                     });
                     html += "</span>";
@@ -475,6 +516,15 @@
             options.dispUnit = dispUnit;
         }
 
+        function setDispUnitKey(optDUK) {
+            options.dispUnitKey = {};
+            $.each(dispUnitKey, function (index, duk) {
+                if ($.inArray(duk.value, optDUK)>=0) {
+                    options.dispUnitKey[duk.value] = duk;
+                }
+            });
+        }
+
         function setArrowFormatter(arrowFormatter) {
             options.arrowFormatter = arrowFormatter;
         }
@@ -494,7 +544,7 @@
             }
             var dialog = $("#spGanttChartColumn_dialog");
             if (!dialog.length) {
-                dialog = $(_dialogDiv).appendTo(hidden);
+                dialog = $(makeDialog()).appendTo(hidden);
                 dialog.find(".spGanttChartColumn_dispUnit").on("click", function (event) {
                     var dispBase = null;
                     var dispUnit = parseDispUnit($(this).val());
@@ -567,6 +617,43 @@
             }
             dialog.find("#spGanttChartColumn_dispUnit_" + options.dispUnit.value).prop("checked", true);
             return dialog;
+        }
+
+        function makeDialog() {
+            var _dialogDiv = "<div id=\"spGanttChartColumn_dialog\">";
+            _dialogDiv += "";
+            _dialogDiv += "<table>";
+            _dialogDiv += "  <tr>";
+            _dialogDiv += "    <th style=\"white-space: nowrap;\">表示単位</th>";
+            _dialogDiv += "    <td style=\"white-space: nowrap;\">";
+
+            $.each($.map(options.dispUnitKey, function (value, key) {
+                return key;
+            }), function (index, key) {
+                _dialogDiv += "<input class=\"spGanttChartColumn_dispUnit\" name=\"spGanttChartColumn_dispUnit\" id=\"spGanttChartColumn_dispUnit_" + key + "\" type=\"radio\" value=\"" + key + "\">";
+                _dialogDiv += "<label for=\"spGanttChartColumn_dispUnit_" + key + "\">" + dispUnitKey[key].title + "</label>";
+            });
+            _dialogDiv += "    </td>";
+            _dialogDiv += "  </tr>";
+            _dialogDiv += "  <tr>";
+            _dialogDiv += "    <th style=\"white-space: nowrap;\">表示開始日</th>";
+            _dialogDiv += "    <td style=\"white-space: nowrap;\">";
+            _dialogDiv += "      <input style=\"width:8em;\" class=\"spGanttChartColumn_dispBase\" type=\"text\" data-role=\"datebox\">";
+            _dialogDiv += "      <button class=\"spGanttChartColumn_dispBase_today\">今日</button>";
+            _dialogDiv += "    </td>";
+            _dialogDiv += "  </tr>";
+            _dialogDiv += "  <tr>";
+            _dialogDiv += "    <th style=\"white-space: nowrap;\">表示期間</th>";
+            _dialogDiv += "    <td style=\"white-space: nowrap;\">";
+            _dialogDiv += "      <input style=\"width:8em;\" class=\"spGanttChartColumn_dispDuration\" type=\"text\">";
+            _dialogDiv += "      <input class=\"spGanttChartColumn_dispDuration_auto\" id=\"spGanttChartColumn_dispDuration_auto\" type=\"checkbox\">";
+            _dialogDiv += "      <label for=\"spGanttChartColumn_dispDuration_auto\">自動</label>";
+            _dialogDiv += "    </td>";
+            _dialogDiv += "  </tr>";
+            _dialogDiv += "</table>";
+            _dialogDiv += "</div>";
+
+            return _dialogDiv;
         }
 
         function checkToday(tmpD, today) {
