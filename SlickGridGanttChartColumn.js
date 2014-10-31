@@ -48,9 +48,12 @@
             }
         ,
             calcRange: function (graph, dispBaseTime, lastDate) {
-                start = Math.floor((graph.start.getTime() - dispBaseTime) / dateTime);
-                if (graph.duration > 0) {
-                    duration = graph.duration;
+                var start = null;
+                if (graph.start) {
+                    start = Math.floor((graph.start.getTime() - dispBaseTime) / dateTime);
+                }
+                if (graph.duration >= 0) {
+                    duration = graph.duration + 1;
                 } else {
                     if (Date.today().isAfter(graph.start)) {
                         duration = Math.floor((Date.today() - graph.start) / (1000 * 60 * 60 * 24)) + 1;
@@ -118,7 +121,7 @@
                 var startW = graph.start.format("%U");
                 start = startW - dispBaseTime;
                 var durationW = -1;
-                if (graph.duration > 0) {
+                if (graph.duration >= 0) {
                     lastDate = graph.start.clone().addDays(graph.duration - 1);
                 } else {
                     if (Date.today().isAfter(graph.start)) {
@@ -198,7 +201,7 @@
                 var startM = graph.start.toString("M");
                 start = startM - dispBaseTime;
                 var durationM = -1;
-                if (graph.duration > 0) {
+                if (graph.duration >= 0) {
                     lastDate = graph.start.clone().addDays(graph.duration - 1);
                 } else {
                     if (Date.today().isAfter(graph.start)) {
@@ -279,20 +282,26 @@
         }
     ,
         dispUnitWFormat: null
+    ,
+        onDispRangeChange: null
+    ,
     }
     function GanttChartColumn(options) {
         var _grid;
         var _self = this;
         var _handler = new Slick.EventHandler();
         var _originalRender;
+        var _originalSetColumns;
         var underCellLayer = null;
         var upperCellLayer = null;
         var dispDuration = 0;
         var ganttChartData = [];
+        var currentIndex = -1;
 
         function init(grid) {
             var _options = options;
             options = $.extend(true, {}, _defaults);
+            options.onDispRangeChange = onDispRangeChange
             $.each($.map(_options, function (value, key) {
                 return key;
             }), function (index, key) {
@@ -315,6 +324,8 @@
 
             _originalRender = _grid.render;
             _grid.render = render
+            _originalSetColumns = _grid.setColumns;
+            _grid.setColumns = setColumns;
 
             _handler
                 .subscribe(_grid.onHeaderClick, headerClick)
@@ -328,8 +339,31 @@
         }
 
         function render() {
-            caclDispDuration();
+            if (!dispDuration) {
+                calcDispDuration();
+                if (options.onDispRangeChange) {
+                    var range = getRenderRange();
+                    options.onDispRangeChange.apply(
+                        this
+                    ,
+                        [
+                            range.from
+                        ,
+                            range.to
+                        ]
+                    );
+                } else {
+                    _grid.render();
+                }
+            } else {
+                _grid.invalidateAllRows();
+            }
             _originalRender();
+        }
+
+        function setColumns(columnDefinitions) {
+            dispDuration = 0;
+            _originalSetColumns(columnDefinitions);
         }
 
         function formatter(row, cell, value, columnDef, dataContext) {
@@ -397,7 +431,9 @@
                     html += "<span class=\"sgBar\" style=\"position:absolute;top:0;left:0;right:0;bottom:0;padding:2px 0;\">";
                     $.each(value, function (index, graph) {
                         var range = options.dispUnit.calcRange(graph, dispBaseTime, lastDate);
-                        html += makeArrow(row, cell, value, columnDef, dataContext, graph, index, range.start, range.duration);
+                        if (range.start != null) {
+                            html += makeArrow(row, cell, value, columnDef, dataContext, graph, index, range.start, range.duration);
+                        }
                     });
                     html += "</span>";
                 }
@@ -419,6 +455,10 @@
 
         function makeArrow(row, cell, value, columnDef, dataContext, graph, index, start, duration) {
             var bar = options.arrow.clone();
+            if (currentIndex < 0) {
+            } else if (start <= currentIndex && (start + duration - 1) >= currentIndex) {
+                bar.addClass("sgSelected");
+            }
             bar.css("width", duration * options.cellWidth);
             bar.css("margin-left", start * options.cellWidth);
             bar.prop("title", graph.start.toString("yyyy/MM/dd") + "から" + graph.duration + "日間");
@@ -449,8 +489,10 @@
             if (checkTargetColumn(column)) {
                 var src = $(e.target);
                 var data = _grid.getDataItem(src.attr("sgdata.row"));
-                var sgBar = src.closest(".sgGanttChart").children(".sgBar");
+                var chart = src.closest(".sgGanttChart");
+                var sgBar = chart.children(".sgBar");
                 var index = eval(src.attr("sgdata.index"));
+                currentIndex = index;
                 var list = sgBar.children().filter(function () {
                     var sgArrow = $(this);
                     return sgArrow.hasClass("sgArrow") && eval(sgArrow.attr("sgdata.start")) <= index && index <= eval(sgArrow.attr("sgdata.end"));
@@ -471,11 +513,31 @@
                     from = Date.parse(from);
                     break;
             }
-            options.dispBase = from;
+            if (!options.dispBase || Date.compare(options.dispBase, from) != 0) {
+                options.dispBase = from;
+                options.dispCenter = null;
+                dispDuration = 0;
+            }
+        }
+
+        function setCenter(center) {
+            switch (typeof (center)) {
+                case "string":
+                    center = Date.parse(center);
+                    break;
+            }
+            if (!options.dispCenter || Date.compare(options.dispCenter, center) != 0) {
+                options.dispCenter = center;
+                options.dispBase = null;
+                dispDuration = 0;
+            }
         }
 
         function setDuration(duration) {
-            options.dispDuration = duration;
+            if (options.dispDuration != duration) {
+                options.dispDuration = duration;
+                dispDuration = 0;
+            }
         }
 
         function setArrow(arrow) {
@@ -513,13 +575,16 @@
                 default:
                     throw "Not Support target";
             }
-            options.dispUnit = dispUnit;
+            if (options.dispUnit.value != dispUnit.value) {
+                dispDuration = 0;
+                options.dispUnit = dispUnit;
+            }
         }
 
         function setDispUnitKey(optDUK) {
             options.dispUnitKey = {};
             $.each(dispUnitKey, function (index, duk) {
-                if ($.inArray(duk.value, optDUK)>=0) {
+                if ($.inArray(duk.value, optDUK) >= 0) {
                     options.dispUnitKey[duk.value] = duk;
                 }
             });
@@ -531,6 +596,10 @@
 
         function setOnArrowClick(onArrowClick) {
             options.onArrowClick = onArrowClick;
+        }
+
+        function setOnDispRangeChange(onDispRangeChange) {
+            options.onDispRangeChange = onDispRangeChange;
         }
 
         function setHoliday(holidays) {
@@ -676,7 +745,7 @@
             return tmpD;
         }
 
-        function caclDispDuration() {
+        function calcDispDuration() {
             var columns = _grid.getColumns();
             $.each(columns, function (index, column) {
                 if (checkTargetColumn(column)) {
@@ -695,18 +764,48 @@
                         column.resizable = false;
                         dispDuration = options.dispDuration;
                     }
-                    if (!options.dispBase) {
+                    if (options.dispCenter) {
+                        var center = options.dispCenter.clone();
+                        switch (options.dispUnit.value) {
+                            case dispUnitKey.D.value:
+                                center = center.addDays(-1 * dispDuration / 2);
+                                break;
+                            case dispUnitKey.W.value:
+                                center = center.addWeeks(-1 * dispDuration / 2);
+                                break;
+                            case dispUnitKey.M.value:
+                                center = center.addMonths(-1 * dispDuration / 2);
+                                break;
+                        }
+                        options.dispBase = center;
+                    } else if (!options.dispBase) {
                         options.dispBase = options.dispUnit.getDispBase(dispDuration);
                     }
                     column.name = formatter(-1, -1, null, column, null);
                     column.formatter = formatter;
                 }
             });
-            _grid.setColumns(columns);
+            _originalSetColumns(columns);
         }
 
         function outerHTML(target) {
             return jQuery("<p>").append(target).html();
+        }
+
+        function getRenderRange() {
+            if (!dispDuration) {
+                calcDispDuration()
+            }
+
+            return {
+                from: options.dispUnit.getDate(options.dispBase)
+            ,
+                to: getCellDate(dispDuration - 1)
+            };
+        }
+
+        function onDispRangeChange(start, end) {
+            _grid.render();
         }
 
         // Public API
@@ -717,6 +816,8 @@
         ,
             "setFrom": setFrom
         ,
+            "setCenter": setCenter
+        ,
             "setDuration": setDuration
         ,
             "setArrow": setArrow
@@ -725,11 +826,16 @@
         ,
             "setOnArrowClick": setOnArrowClick
         ,
+            "setOnDispRangeChange": setOnDispRangeChange
+        ,
             "setHoliday": setHoliday
         ,
             "getOptionDialog": getDialog
         ,
             "getCellDate": getCellDate
+        ,
+            "getRenderRange": getRenderRange
+        ,
         });
     }
 })(jQuery);
