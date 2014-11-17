@@ -49,16 +49,24 @@
         ,
             calcRange: function (graph, dispBaseTime, lastDate) {
                 var start = null;
+                var duration = -1;
                 if (graph.start) {
                     start = Math.floor((graph.start.getTime() - dispBaseTime) / dateTime);
                 }
                 if (graph.duration >= 0) {
                     duration = graph.duration + 1;
                 } else {
-                    if (Date.today().isAfter(graph.start)) {
-                        duration = Math.floor((Date.today() - graph.start) / (1000 * 60 * 60 * 24)) + 1;
-                    } else {
-                        duration = Math.floor((lastDate - graph.start) / (1000 * 60 * 60 * 24)) + 1;
+                    switch (graph.duration) {
+                        case -1:
+                            if (Date.today().isAfter(graph.start)) {
+                                duration = Math.floor((Date.today() - graph.start) / dateTime) + 1;
+                            } else {
+                                duration = Math.floor((lastDate - graph.start) / dateTime) + 1;
+                            }
+                            break;
+                        case -2:
+                            duration = Math.floor((lastDate - graph.start) / dateTime) + 1;
+                            break;
                     }
                 }
 
@@ -114,37 +122,32 @@
             }
         ,
             getBaseTime: function (dispBase) {
-                return dispUnitKey.W.getDate(dispBase).format("%U");
+                return dispUnitKey.D.getDate(dispBase).getTime();
             }
         ,
             calcRange: function (graph, dispBaseTime, lastDate) {
-                var startW = graph.start.format("%U");
-                start = startW - dispBaseTime;
-                var durationW = -1;
-                if (graph.duration >= 0) {
-                    lastDate = graph.start.clone().addDays(graph.duration - 1);
-                } else {
-                    if (Date.today().isAfter(graph.start)) {
-                        lastDate = Date.today();
+                var start = null;
+                var duration = -1;
+                if (graph.start) {
+                    start = Math.ceil(Math.floor((graph.start.getTime() - dispBaseTime) / dateTime) / 7);
+                    var durationW = -1;
+                    if (graph.duration > 0) {
+                        lastDate = graph.start.clone().addDays(graph.duration);
+                    } else if (graph.duration == 0) {
+                        lastDate = graph.start.clone().addDays(graph.duration + 1);
+                    } else {
+                        switch (graph.duration) {
+                            case -1:
+                                if (Date.today().isAfter(graph.start)) {
+                                    lastDate = Date.today();
+                                }
+                                break;
+                            case -2:
+                                break;
+                        }
                     }
+                    duration = Math.ceil(Math.floor((lastDate.getTime() - graph.start.getTime()) / dateTime) / 7);
                 }
-                durationW = parseInt(lastDate.format("%U"));
-                var lYear = lastDate.getYear();
-                switch (true) {
-                    case graph.start.getYear() == lYear:
-                        break;
-                    case graph.start.getYear() < lYear:
-                        var cal = graph.start.clone();
-                        do {
-                            cal = cal.moveToFirstDayOfMonth().moveToMonth(0).addDays(-1);
-                            durationW += parseInt(cal.format("%U"));
-                            cal.addDays(1);
-                        } while (cal.getYear() < lYear);
-                        break;
-                    default:
-                        throw Error("想定外Death!!");
-                }
-                duration = durationW - startW + 1;
 
                 return {
                     start: start
@@ -194,37 +197,48 @@
             }
         ,
             getBaseTime: function (dispBase) {
-                return dispUnitKey.M.getDate(dispBase).toString("M");
+                var tmp = dispUnitKey.M.getDate(dispBase);
+                return parseInt(tmp.toString("M")) + tmp.toString("yyyy") * 12;
             }
         ,
             calcRange: function (graph, dispBaseTime, lastDate) {
-                var startM = graph.start.toString("M");
-                start = startM - dispBaseTime;
-                var durationM = -1;
-                if (graph.duration >= 0) {
-                    lastDate = graph.start.clone().addDays(graph.duration - 1);
-                } else {
-                    if (Date.today().isAfter(graph.start)) {
-                        lastDate = Date.today();
+                var start = null;
+                var duration = -1;
+                if (graph.start) {
+                    var startM = parseInt(graph.start.toString("M")) + graph.start.toString("yyyy") * 12;
+                    start = startM - dispBaseTime;
+                    var durationM = -1;
+                    if (graph.duration >= 0) {
+                        lastDate = graph.start.clone().addDays(graph.duration);
+                    } else {
+                        switch (graph.duration) {
+                            case -1:
+                                if (Date.today().isAfter(graph.start)) {
+                                    lastDate = Date.today();
+                                }
+                                break;
+                            case -2:
+                                break;
+                        }
                     }
+                    durationM = parseInt(lastDate.toString("M")) + lastDate.toString("yyyy") * 12;
+                    var lYear = lastDate.getYear();
+                    switch (true) {
+                        case graph.start.getYear() == lYear:
+                            break;
+                        case graph.start.getYear() < lYear:
+                            var cal = graph.start.clone();
+                            do {
+                                cal = cal.moveToFirstDayOfMonth().moveToMonth(0).addDays(-1);
+                                durationM += parseInt(cal.toString("M"));
+                                cal.addDays(1);
+                            } while (cal.getYear() < lYear);
+                            break;
+                        default:
+                            throw Error("想定外Death!!");
+                    }
+                    duration = durationM - startM + 1;
                 }
-                durationM = parseInt(lastDate.toString("M"));
-                var lYear = lastDate.getYear();
-                switch (true) {
-                    case graph.start.getYear() == lYear:
-                        break;
-                    case graph.start.getYear() < lYear:
-                        var cal = graph.start.clone();
-                        do {
-                            cal = cal.moveToFirstDayOfMonth().moveToMonth(0).addDays(-1);
-                            durationM += parseInt(cal.toString("M"));
-                            cal.addDays(1);
-                        } while (cal.getYear() < lYear);
-                        break;
-                    default:
-                        throw Error("想定外Death!!");
-                }
-                duration = durationM - startM + 1;
 
                 return {
                     start: start
@@ -296,7 +310,7 @@
         var upperCellLayer = null;
         var dispDuration = 0;
         var ganttChartData = [];
-        var currentIndex = -1;
+        var resizeTimer = null;
 
         function init(grid) {
             var _options = options;
@@ -319,7 +333,6 @@
                         options[key] = _options[key];
                 }
             });
-
             _grid = grid;
 
             _originalRender = _grid.render;
@@ -331,6 +344,8 @@
                 .subscribe(_grid.onHeaderClick, headerClick)
                 .subscribe(_grid.onClick, gridClick)
             ;
+
+            setDuration(options.dispDuration, true);
         }
 
         function destroy() {
@@ -455,10 +470,6 @@
 
         function makeArrow(row, cell, value, columnDef, dataContext, graph, index, start, duration) {
             var bar = options.arrow.clone();
-            if (currentIndex < 0) {
-            } else if (start <= currentIndex && (start + duration - 1) >= currentIndex) {
-                bar.addClass("sgSelected");
-            }
             bar.css("width", duration * options.cellWidth);
             bar.css("margin-left", start * options.cellWidth);
             bar.prop("title", graph.start.toString("yyyy/MM/dd") + "から" + graph.duration + "日間");
@@ -492,7 +503,6 @@
                 var chart = src.closest(".sgGanttChart");
                 var sgBar = chart.children(".sgBar");
                 var index = eval(src.attr("sgdata.index"));
-                currentIndex = index;
                 var list = sgBar.children().filter(function () {
                     var sgArrow = $(this);
                     return sgArrow.hasClass("sgArrow") && eval(sgArrow.attr("sgdata.start")) <= index && index <= eval(sgArrow.attr("sgdata.end"));
@@ -533,9 +543,23 @@
             }
         }
 
-        function setDuration(duration) {
-            if (options.dispDuration != duration) {
+        function setDuration(duration, force) {
+            if (options.dispDuration != duration || force) {
                 options.dispDuration = duration;
+                if (options.dispDuration === "auto") {
+                    $(_grid.getCanvasNode()).on("resize.sggcc", function () {
+                        if (resizeTimer) {
+                            clearTimeout(resizeTimer);
+                        }
+                        resizeTimer = setTimeout(function () {
+                            dispDuration = 0;
+                            _grid.render();
+                        });
+                    });
+                } else {
+                    $(_grid.getCanvasNode()).off("resize.sggcc");
+                }
+
                 dispDuration = 0;
             }
         }
@@ -606,6 +630,10 @@
             options.holidays = holidays;
         }
 
+        function getHoliday() {
+            return options.holidays;
+        }
+
         function getDialog() {
             var hidden = $("#spGanttChartColumn_hidden");
             if (!hidden.length) {
@@ -613,6 +641,9 @@
             }
             var dialog = $("#spGanttChartColumn_dialog");
             if (!dialog.length) {
+                if (!dispDuration) {
+                    calcDispDuration();
+                }
                 dialog = $(makeDialog()).appendTo(hidden);
                 dialog.find(".spGanttChartColumn_dispUnit").on("click", function (event) {
                     var dispBase = null;
@@ -808,6 +839,12 @@
             _grid.render();
         }
 
+        function calcRange(graph) {
+            var lastDate = options.dispUnit.nextDate(options.dispUnit.getDate(options.dispBase), dispDuration);
+            var dispBaseTime = options.dispUnit.getBaseTime(options.dispBase);
+            return options.dispUnit.calcRange(graph, dispBaseTime, lastDate);
+        }
+
         // Public API
         $.extend(this, {
             "init": init
@@ -830,11 +867,15 @@
         ,
             "setHoliday": setHoliday
         ,
+            "getHoliday": getHoliday
+        ,
             "getOptionDialog": getDialog
         ,
             "getCellDate": getCellDate
         ,
             "getRenderRange": getRenderRange
+        ,
+            "calcRange": calcRange
         ,
         });
     }
